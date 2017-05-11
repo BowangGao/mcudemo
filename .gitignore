@@ -1,0 +1,57 @@
+#include "LPC11xx.h"                    // Device header
+static uint8_t count=5;
+void GPIOinit()                         
+{
+	LPC_GPIO2->DIR = 0xFFF;
+	LPC_GPIO2->DATA = 0xFFF;
+	LPC_GPIO3->DIR &= ~(1<<0);
+	LPC_GPIO3->DIR &= ~(1<<1);
+	LPC_GPIO3->IE |= (1<<0);
+  LPC_GPIO3->IE |= (1<<1);
+	LPC_GPIO3->IS &= ~(1<<0);
+	LPC_GPIO3->IS &= ~(1<<1);
+	LPC_GPIO3->IEV &= ~(1<<0);
+	LPC_GPIO3->IEV &= ~(1<<1);
+	NVIC_EnableIRQ(EINT3_IRQn);
+}
+
+void CT32B1_Init(uint32_t interval)
+{
+	LPC_SYSCON->SYSAHBCLKCTRL |=(1<<16);  //´ò¿ªioconÊ±ÖÓ
+	LPC_IOCON->R_PIO1_2 &=~(0x07);
+	LPC_IOCON->R_PIO1_2 |=0x03;           //½«p1.2ÅäÖÃÎªct32Êä³ö
+	LPC_SYSCON->SYSAHBCLKCTRL &=~(1<<16); //¹Ø±ÕioconÊ±ÖÓ
+	LPC_SYSCON->SYSAHBCLKCTRL |=(1<<10);  //´ò¿ª¶¨Ê±¼ÆÊýÆ÷1Ê±ÖÓ
+	LPC_TMR32B1->TCR=0x02;                //¸´Î»TC
+	LPC_TMR32B1->PR=0;                    //Ã¿¸öPCLK£¬TC+1
+	LPC_TMR32B1->MCR=0x02<<9;             //µ±TCÓëMR3Æ¥ÅäÊ±¸´Î»TC
+	LPC_TMR32B1->PWMC=0x02;               //Ñ¡ÔñCT32×÷ÎªpwmÊä³ö
+	LPC_TMR32B1->MR1 = interval/2;        //ct32Êä³öÂö³åÕ¼¿Õ±È
+  LPC_TMR32B1->MR3 = interval;          //pwmÖÜÆÚ
+	LPC_TMR32B1->TCR = 0x01;              //Æô¶¯¶¨Ê±Æ÷
+	
+}
+void PIOINT3_IRQHandler()               
+	if((LPC_GPIO3->MIS & (1<<0)) == (1<<0))
+	{
+		count ++;
+		if(count>10) count=10;
+		LPC_TMR32B1->MR1 = SystemCoreClock/1000 * count/10;
+		LPC_GPIO3->IC=(1<<0);
+	}
+	if((LPC_GPIO3->MIS & (1<<1)) == (1<<1))
+	{
+		count --;
+		if(count<2) count=2;
+		LPC_TMR32B1->MR1 = SystemCoreClock/1000 * count/10;
+		LPC_GPIO3->IC=(1<<1);
+	}
+}
+int main()
+{
+	GPIOinit();
+	PIOINT3_IRQHandler();
+	CT32B1_Init(SystemCoreClock/1000);
+	while(1);
+	
+}
